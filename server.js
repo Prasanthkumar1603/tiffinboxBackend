@@ -20,6 +20,9 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const userRoutes = require('./routes/userRoutes');
 const adminDashboardRoutes = require('./routes/adminDashboardRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const portalRoutes = require('./routes/portalRoutes');
+
+
 
 connectDB();
 
@@ -54,7 +57,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/admin', adminDashboardRoutes);
 app.use('/api/settings', settingsRoutes);
-
+app.use('/api/portal', portalRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
