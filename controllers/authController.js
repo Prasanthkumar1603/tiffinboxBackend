@@ -57,7 +57,12 @@ const login = asyncHandler(async (req, res) => {
       phone: user.phone,
       email: user.email,
       company: user.company
-        ? { id: user.company._id, name: user.company.name }
+        ? {
+          id: user.company._id,
+          name: user.company.name,
+          slug: user.company.slug,
+          isActive: user.company.isActive,
+        }
         : null,
     },
   });
@@ -67,7 +72,9 @@ const login = asyncHandler(async (req, res) => {
 // @route   GET /api/auth/me
 // @access  Private
 const getMe = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id).populate('company', 'name isActive');
+  const user = await User.findById(req.user._id)
+    .populate('company', 'name slug isActive');
+
   res.json({ success: true, user });
 });
 

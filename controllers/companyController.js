@@ -29,13 +29,27 @@ const createCompany = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error('Missing required company/admin fields');
   }
+// Generate a unique tenant slug
+const baseSlug = name
+  .toLowerCase()
+  .trim()
+  .replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-|-$/g, '') || 'tenant';
 
+let slug = baseSlug;
+let counter = 1;
+
+while (await Company.findOne({ slug })) {
+  slug = `${baseSlug}-${counter}`;
+  counter++;
+}
   const company = await Company.create({
     name,
     ownerName,
     email,
     phone,
     address,
+    slug,
     customerLimit: customerLimit || 100,
     userLimit: userLimit || 5,
   });

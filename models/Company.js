@@ -8,6 +8,13 @@ const companySchema = new mongoose.Schema(
     phone: { type: String, required: true, trim: true },
     address: { type: String, trim: true },
     logoUrl: { type: String, default: '' },
+    slug: {
+  type: String,
+  unique: true,
+  sparse: true,
+  lowercase: true,
+  trim: true
+},
     isActive: { type: Boolean, default: true }, // manual activate/deactivate by Super Admin
     customerLimit: { type: Number, default: 100 },
     userLimit: { type: Number, default: 5 },
