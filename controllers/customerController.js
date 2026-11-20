@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const asyncHandler = require('express-async-handler');
 const Customer = require('../models/Customer');
 const Delivery = require('../models/Delivery');
@@ -74,12 +75,15 @@ const getCustomers = asyncHandler(async (req, res) => {
 // @route   GET /api/customers/:id
 // @access  Admin
 const getCustomerById = asyncHandler(async (req, res) => {
-  const customer = await Customer.findOne({ _id: req.params.id, company: req.companyId });
+  const customer = await Customer.findOne({ _id: req.params.id, company: req.companyId }).select('+portalPassword');
   if (!customer) {
     res.status(404);
     throw new Error('Customer not found');
   }
-  res.json({ success: true, customer });
+  const obj = customer.toObject();
+  obj.hasPortalPassword = Boolean(obj.portalPassword);
+  delete obj.portalPassword;
+  res.json({ success: true, customer: obj });
 });
 
 // @desc    Update customer
@@ -206,7 +210,51 @@ const undoCancelMeal = asyncHandler(async (req, res) => {
   res.json({ success: true, message: 'Cancellation reverted', customer });
 });
 
+// @desc    Set or generate the customer-portal password (shown once to the admin)
+// @route   PUT /api/customers/:id/portal-password   body: { password? }  (omit to auto-generate)
+// @access  Admin
+const setPortalPassword = asyncHandler(async (req, res) => {
+  const customer = await Customer.findOne({ _id: req.params.id, company: req.companyId });
+  if (!customer) {
+    res.status(404);
+    throw new Error('Customer not found');
+  }
+
+  let password = req.body.password ? String(req.body.password) : '';
+  if (password && password.length < 4) {
+    res.status(400);
+    throw new Error('Password must be at least 4 characters');
+  }
+  if (!password) {
+    password = String(crypto.randomInt(100000, 1000000)); // 6-digit PIN
+  }
+
+  customer.portalPassword = password;
+  customer.portalEnabled = true;
+  await customer.save();
+
+  res.json({ success: true, password, message: 'Portal password set. Share it with the customer.' });
+});
+
+// @desc    Enable / disable customer-portal login for a customer
+// @route   PUT /api/customers/:id/portal-access   body: { enabled: boolean }
+// @access  Admin
+const setPortalAccess = asyncHandler(async (req, res) => {
+  const customer = await Customer.findOneAndUpdate(
+    { _id: req.params.id, company: req.companyId },
+    { portalEnabled: Boolean(req.body.enabled) },
+    { new: true }
+  );
+  if (!customer) {
+    res.status(404);
+    throw new Error('Customer not found');
+  }
+  res.json({ success: true, portalEnabled: customer.portalEnabled });
+});
+
 module.exports = {
+  setPortalPassword,
+  setPortalAccess,
   createCustomer,
   getCustomers,
   getCustomerById,

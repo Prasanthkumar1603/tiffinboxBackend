@@ -4,6 +4,8 @@ const Company = require('../models/Company');
 const Customer = require('../models/Customer');
 const Bill = require('../models/Bill');
 const { assertCustomerLimit } = require('../services/limitService');
+const { generateCustomerToken } = require('../utils/generateToken');
+const { assertCompanyUsable } = require('../middlewares/customerAuthMiddleware');
 
 // PUBLIC CUSTOMER REGISTRATION
 const registerCustomer = asyncHandler(async (req, res) => {
@@ -15,6 +17,7 @@ const registerCustomer = asyncHandler(async (req, res) => {
     const address = String(req.body.address || '').trim();
     const googleMapLink = String(req.body.googleMapLink || '').trim();
     const mealPlan = String(req.body.mealPlan || '').trim();
+    const password = String(req.body.password || '');
 
     // 1. Validate tenant
     const company = await Company.findOne({
@@ -81,6 +84,13 @@ const registerCustomer = asyncHandler(async (req, res) => {
         }
     }
 
+    if (password && password.length < 4) {
+        return res.status(400).json({
+            success: false,
+            message: 'Password must be at least 4 characters.',
+        });
+    }
+
     // 3. Check duplicate mobile number within this company
     const existingCustomer = await Customer.findOne({
         company: company._id,
@@ -106,11 +116,14 @@ const registerCustomer = asyncHandler(async (req, res) => {
         address,
         googleMapLink,
         mealPlan,
+        ...(password ? { portalPassword: password } : {}),
     });
 
     return res.status(201).json({
         success: true,
-        message: 'Registration successful! Your details have been submitted.',
+        message: password
+            ? 'Registration successful! You can now log in with your mobile number and password.'
+            : 'Registration successful! Your details have been submitted.',
         customer: {
             name: customer.name,
             phone: customer.phone,
@@ -218,7 +231,71 @@ const getCustomerBillByPhone = asyncHandler(async (req, res) => {
     });
 });
 
+// CUSTOMER PORTAL LOGIN (phone + password)
+// POST /api/portal/:tenantSlug/login
+const customerLogin = asyncHandler(async (req, res) => {
+    const { tenantSlug } = req.params;
+    const phone = String(req.body.phone || '').replace(/\D/g, '');
+    const password = String(req.body.password || '');
+
+    if (!/^\d{10}$/.test(phone) || !password) {
+        return res.status(400).json({
+            success: false,
+            message: 'Enter your 10-digit mobile number and password.',
+        });
+    }
+
+    const company = await Company.findOne({
+        slug: tenantSlug.toLowerCase(),
+        isActive: true,
+    }).select('_id slug name phone isActive');
+
+    if (!company) {
+        return res.status(404).json({ success: false, message: 'Company portal not found.' });
+    }
+
+    await assertCompanyUsable(company._id, res);
+
+    const customer = await Customer.findOne({
+        company: company._id,
+        phone,
+        status: 'active',
+    }).select('+portalPassword');
+
+    // Same message for unknown number / wrong password / no password, so numbers can't be probed.
+    const invalid = () =>
+        res.status(401).json({ success: false, message: 'Invalid mobile number or password.' });
+
+    if (!customer || customer.portalEnabled === false) return invalid();
+
+    if (!customer.portalPassword) {
+        return res.status(403).json({
+            success: false,
+            message: 'Portal password is not set yet. Please ask your kitchen to set it for you.',
+        });
+    }
+
+    if (!(await customer.matchPortalPassword(password))) return invalid();
+
+    customer.portalLastLoginAt = new Date();
+    await customer.save();
+
+    res.json({
+        success: true,
+        token: generateCustomerToken(customer._id, company._id),
+        customer: {
+            id: customer._id,
+            name: customer.name,
+            phone: customer.phone,
+            area: customer.area,
+            mealPlan: customer.mealPlan,
+        },
+        company: { name: company.name, slug: company.slug, phone: company.phone || '' },
+    });
+});
+
 module.exports = {
     registerCustomer,
     getCustomerBillByPhone,
+    customerLogin,
 };

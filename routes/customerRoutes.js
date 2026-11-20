@@ -10,6 +10,8 @@ const {
   deactivateCustomer,
   cancelMeal,
   undoCancelMeal,
+  setPortalPassword,
+  setPortalAccess,
 } = require('../controllers/customerController');
 const { protect } = require('../middlewares/authMiddleware');
 const { authorize } = require('../middlewares/roleMiddleware');
@@ -22,6 +24,8 @@ router.route('/').get(getCustomers).post(createCustomer);
 router.route('/:id').get(getCustomerById).put(updateCustomer).delete(deleteCustomer);
 router.put('/:id/activate', activateCustomer);
 router.put('/:id/deactivate', deactivateCustomer);
+router.put('/:id/portal-password', setPortalPassword);
+router.put('/:id/portal-access', setPortalAccess);
 router.post('/:id/cancel-meal', cancelMeal);
 router.delete('/:id/cancel-meal', undoCancelMeal);
 

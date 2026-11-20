@@ -21,12 +21,14 @@ const userRoutes = require('./routes/userRoutes');
 const adminDashboardRoutes = require('./routes/adminDashboardRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const portalRoutes = require('./routes/portalRoutes');
+const customerPortalRoutes = require('./routes/customerPortalRoutes');
 
 
 
 connectDB();
 
 const app = express();
+app.set('trust proxy', 1);
 
 app.use(helmet());
 app.use(
@@ -58,6 +60,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/admin', adminDashboardRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/portal', portalRoutes);
+app.use('/api/my', customerPortalRoutes);
 app.use(notFound);
 app.use(errorHandler);
 

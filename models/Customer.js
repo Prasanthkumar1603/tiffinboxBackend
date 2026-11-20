@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const MEAL_PLANS = [
   'breakfast',
@@ -39,8 +40,17 @@ const customerSchema = new mongoose.Schema(
       {
         date: { type: String, required: true }, // stored as YYYY-MM-DD for easy matching
         meal: { type: String, enum: ['breakfast', 'lunch', 'dinner'], required: true },
+        cancelledBy: { type: String, enum: ['customer', 'admin'], default: 'admin' },
+        cancelledAt: { type: Date, default: Date.now },
       },
     ],
+
+    // ---- Customer portal access ----
+    // Customers log in to the portal with phone + this password. It is set by the customer at
+    // registration or generated/reset by the admin. Never returned by default (select: false).
+    portalPassword: { type: String, select: false },
+    portalEnabled: { type: Boolean, default: true },
+    portalLastLoginAt: { type: Date },
 
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   },
@@ -52,6 +62,20 @@ customerSchema.index({ company: 1, area: 1 });
 customerSchema.index({ company: 1, name: 'text' });
 
 customerSchema.statics.MEAL_PLANS = MEAL_PLANS;
+
+// Hash the portal password whenever it is set/changed
+customerSchema.pre('save', async function (next) {
+  if (!this.isModified('portalPassword') || !this.portalPassword) return next();
+  const salt = await bcrypt.genSalt(10);
+  this.portalPassword = await bcrypt.hash(this.portalPassword, salt);
+  next();
+});
+
+customerSchema.methods.matchPortalPassword = async function (entered) {
+  if (!this.portalPassword) return false;
+  return bcrypt.compare(String(entered), this.portalPassword);
+};
+
 
 // Helper: does this customer's plan include a given meal
 customerSchema.methods.hasMeal = function (meal) {
