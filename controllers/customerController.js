@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const asyncHandler = require('express-async-handler');
 const Customer = require('../models/Customer');
 const Delivery = require('../models/Delivery');
+const User = require('../models/User');
+const mongoose = require('mongoose');
 const { assertCustomerLimit } = require('../services/limitService');
 const { toDateKey } = require('../utils/dateHelpers');
 
@@ -41,9 +43,12 @@ const createCustomer = asyncHandler(async (req, res) => {
 // @route   GET /api/customers
 // @access  Admin
 const getCustomers = asyncHandler(async (req, res) => {
-  const { search, area, status, mealPlan, page = 1, limit = 20 } = req.query;
+  const { search, area, status, mealPlan, assigned, page = 1, limit = 20 } = req.query;
 
   const query = { company: req.companyId };
+  // assigned: 'unassigned' | '<deliveryBoyId>'
+  if (assigned === 'unassigned') query.assignedTo = null;
+  else if (assigned && mongoose.isValidObjectId(assigned)) query.assignedTo = assigned;
   if (area) query.area = area;
   if (status) query.status = status;
   if (mealPlan) query.mealPlan = mealPlan;
@@ -57,7 +62,7 @@ const getCustomers = asyncHandler(async (req, res) => {
 
   const skip = (Number(page) - 1) * Number(limit);
   const [customers, total] = await Promise.all([
-    Customer.find(query).sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
+    Customer.find(query).populate('assignedTo', 'name phone').sort({ createdAt: -1 }).skip(skip).limit(Number(limit)),
     Customer.countDocuments(query),
   ]);
 
@@ -252,7 +257,58 @@ const setPortalAccess = asyncHandler(async (req, res) => {
   res.json({ success: true, portalEnabled: customer.portalEnabled });
 });
 
+// @desc    Assign (or unassign) selected customers to a delivery person
+// @route   PUT /api/customers/assign
+// @access  Admin
+// body: { customerIds: [id...], deliveryBoyId: id | null }   (null/empty = unassign)
+const assignCustomers = asyncHandler(async (req, res) => {
+  const { customerIds, deliveryBoyId } = req.body;
+
+  if (!Array.isArray(customerIds) || customerIds.length === 0) {
+    res.status(400);
+    throw new Error('Select at least one customer');
+  }
+  if (!customerIds.every((id) => mongoose.isValidObjectId(id))) {
+    res.status(400);
+    throw new Error('Invalid customer id in selection');
+  }
+
+  let assignee = null;
+  if (deliveryBoyId) {
+    if (!mongoose.isValidObjectId(deliveryBoyId)) {
+      res.status(400);
+      throw new Error('Invalid delivery person');
+    }
+    assignee = await User.findOne({
+      _id: deliveryBoyId,
+      company: req.companyId,
+      role: 'delivery',
+      isActive: true,
+    });
+    if (!assignee) {
+      res.status(404);
+      throw new Error('Delivery person not found or inactive');
+    }
+  }
+
+  // company filter guarantees customers from other tenants can never be touched
+  const result = await Customer.updateMany(
+    { _id: { $in: customerIds }, company: req.companyId },
+    { $set: { assignedTo: assignee ? assignee._id : null } }
+  );
+
+  res.json({
+    success: true,
+    matched: result.matchedCount,
+    modified: result.modifiedCount,
+    message: assignee
+      ? `${result.matchedCount} customer(s) assigned to ${assignee.name}`
+      : `${result.matchedCount} customer(s) unassigned`,
+  });
+});
+
 module.exports = {
+  assignCustomers,
   setPortalPassword,
   setPortalAccess,
   createCustomer,

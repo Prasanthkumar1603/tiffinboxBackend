@@ -52,6 +52,10 @@ const customerSchema = new mongoose.Schema(
     portalEnabled: { type: Boolean, default: true },
     portalLastLoginAt: { type: Date },
 
+    // Delivery person (User with role 'delivery') responsible for this customer.
+    // null = unassigned. Only admins can change this.
+    assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
   },
   { timestamps: true }

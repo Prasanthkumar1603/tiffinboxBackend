@@ -6,6 +6,8 @@ const {
   undoDelivered,
   submitDeliveries,
   getHistory,
+  getMyCustomers,
+  getMyStats,
 } = require('../controllers/deliveryController');
 const { protect } = require('../middlewares/authMiddleware');
 const { authorize } = require('../middlewares/roleMiddleware');
@@ -15,6 +17,8 @@ const { scopeToCompany } = require('../middlewares/tenantMiddleware');
 router.use(protect, authorize('admin', 'delivery'), checkLicense, scopeToCompany);
 
 router.get('/list', getListForMeal);
+router.get('/customers', getMyCustomers); // read-only view of assigned customers
+router.get('/stats', getMyStats);
 router.post('/submit', submitDeliveries);
 router.put('/:id/deliver', markDelivered);
 router.put('/:id/undo', undoDelivered);

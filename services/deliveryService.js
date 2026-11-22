@@ -59,10 +59,14 @@ const ensureDeliveryRecords = async (companyId, meal, dateKey) => {
  * excluding customers not subscribed to that meal (guaranteed by ensureDeliveryRecords
  * only ever creating records for subscribed customers).
  */
-const getDeliveryList = async (companyId, meal, dateKey) => {
+const getDeliveryList = async (companyId, meal, dateKey, assignedCustomerIds = null) => {
   await ensureDeliveryRecords(companyId, meal, dateKey);
 
-  const deliveries = await Delivery.find({ company: companyId, date: dateKey, meal })
+  const filter = { company: companyId, date: dateKey, meal };
+  // For delivery persons: only customers assigned to them (null = no restriction, i.e. admin)
+  if (Array.isArray(assignedCustomerIds)) filter.customer = { $in: assignedCustomerIds };
+
+  const deliveries = await Delivery.find(filter)
     .populate('customer', 'name phone area googleMapLink address status')
     .populate('deliveredBy', 'name')
     .sort({ 'customer.area': 1 });

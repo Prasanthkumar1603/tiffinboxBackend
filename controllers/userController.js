@@ -1,5 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const User = require('../models/User');
+const Customer = require('../models/Customer');
 const { assertUserLimit } = require('../services/limitService');
 
 // @desc    Create a Delivery Boy account
@@ -77,6 +78,8 @@ const deleteUser = asyncHandler(async (req, res) => {
     res.status(403);
     throw new Error('Only delivery boy accounts can be deleted here');
   }
+  // release this person's customers back to the unassigned pool
+  await Customer.updateMany({ company: req.companyId, assignedTo: user._id }, { $set: { assignedTo: null } });
   await user.deleteOne();
   res.json({ success: true, message: 'User deleted' });
 });

@@ -12,6 +12,7 @@ const {
   undoCancelMeal,
   setPortalPassword,
   setPortalAccess,
+  assignCustomers,
 } = require('../controllers/customerController');
 const { protect } = require('../middlewares/authMiddleware');
 const { authorize } = require('../middlewares/roleMiddleware');
@@ -21,6 +22,7 @@ const { scopeToCompany } = require('../middlewares/tenantMiddleware');
 router.use(protect, authorize('admin'), checkLicense, scopeToCompany);
 
 router.route('/').get(getCustomers).post(createCustomer);
+router.put('/assign', assignCustomers); // must stay above '/:id'
 router.route('/:id').get(getCustomerById).put(updateCustomer).delete(deleteCustomer);
 router.put('/:id/activate', activateCustomer);
 router.put('/:id/deactivate', deactivateCustomer);
